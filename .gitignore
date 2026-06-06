@@ -1,0 +1,7 @@
+# 固有の除外ファイル・フォルダ
+.agents/
+cp.txt
+plan.md
+
+# Mavenのビルド成果物（targetフォルダ）
+target/

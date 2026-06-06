@@ -1,0 +1,22 @@
+name: KaisabaBuild
+version: 1.0.0
+main: net.kaisaba.build.KaisabaBuild
+api-version: '26.1.2'
+depend: [FastAsyncWorldEdit, WorldGuard]
+softdepend:
+  - Multiverse-Core
+
+commands:
+  kb:
+    description: KaisabaBuild管理コマンド
+    usage: /kb <setlobby|setup|start|stop|reset|penalty>
+    permission: kaisababuild.admin
+
+permissions:
+  kaisababuild.admin:
+    description: 管理コマンドの使用権限
+    default: op
+  # FAWEがWorldGuardリージョンのメンバーのWorldEdit操作を許可する
+  fawe.worldguard.member:
+    description: FAWEでWorldGuardリージョンメンバーの建築を許可
+    default: true
