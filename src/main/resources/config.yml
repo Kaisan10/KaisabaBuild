@@ -1,0 +1,20 @@
+# ロビーワールド名（デフォルトのワールド名）
+lobby-world: world
+
+# ロビースポーン座標（/kb setlobby で自動上書き）
+lobby-spawn:
+  x: 0.0
+  y: 64.0
+  z: 0.0
+  yaw: 0.0
+  pitch: 0.0
+
+# アリーナワールド名（/mv create arena normal -t flat で作成したワールド）
+arena-world: arena
+
+# ゲーム設定
+max-players: 16
+min-players: 3
+countdown-seconds: 30
+build-time-minutes: 20
+rating-time-minutes: 5
