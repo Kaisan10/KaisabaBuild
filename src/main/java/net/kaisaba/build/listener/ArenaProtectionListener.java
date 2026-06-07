@@ -12,6 +12,8 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityTeleportEvent;
+import org.bukkit.entity.Enderman;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 
@@ -86,6 +88,16 @@ public class ArenaProtectionListener implements Listener {
         Block clicked = event.getClickedBlock();
         if (clicked == null || clicked.getType() != Material.DRAGON_EGG) return;
         if (!isArena(clicked.getWorld().getName())) return;
+        event.setCancelled(true);
+    }
+
+    // エンダーマンテレポート禁止 ────────────────────────────────────
+
+    /** アリーナワールド内のエンダーマンのテレポートを全フェーズで禁止する。 */
+    @EventHandler
+    public void onEndermanTeleport(EntityTeleportEvent event) {
+        if (!(event.getEntity() instanceof Enderman)) return;
+        if (!isArena(event.getEntity().getWorld().getName())) return;
         event.setCancelled(true);
     }
 

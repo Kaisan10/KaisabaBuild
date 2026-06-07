@@ -5,6 +5,7 @@ import net.kaisaba.build.listener.BuildListener;
 import net.kaisaba.build.listener.LobbyListener;
 import net.kaisaba.build.listener.RatingListener;
 import net.kaisaba.build.listener.ArenaProtectionListener;
+import net.kaisaba.build.listener.ServerRuleListener;
 import net.kaisaba.build.listener.WorldEditRestrictor;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -42,6 +43,7 @@ public class KaisabaBuild extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BuildListener(this), this);
         getServer().getPluginManager().registerEvents(new ArenaProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new RatingListener(this), this);
+        getServer().getPluginManager().registerEvents(new ServerRuleListener(this), this);
 
         // WorldEdit の EditSessionEvent にマスク制限を登録
         worldEditRestrictor = new WorldEditRestrictor(this);

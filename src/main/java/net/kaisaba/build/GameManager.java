@@ -20,13 +20,15 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * ゲームの状態遷移・タイマー・テレポートを管理する。
  *
- * IDLE → (startGame) → BUILDING → (buildTimer終了) → RATING → (ratingTimer終了) → IDLE
+ * IDLE → (startGame) → BUILDING → (buildTimer終了 or 全員完了) → RATING → (ratingTimer終了 or 全員完了) → IDLE
  *
  * 依存: PlotManager, QueueManager, RatingManager（KaisabaBuild経由で参照）
  */
@@ -47,6 +49,12 @@ public class GameManager {
 
     /** 現在のゲームに参加しているプレイヤー UUID リスト */
     private final List<UUID> activePlayers = new ArrayList<>();
+
+    /** 建築完了済みプレイヤーの UUID セット */
+    private final Set<UUID> completedBuilders = new HashSet<>();
+
+    /** 評価完了済みプレイヤーの UUID セット */
+    private final Set<UUID> completedRaters = new HashSet<>();
 
     /** 建築フェーズ開始時刻（エポックミリ秒）。IDLE 時は -1。 */
     private long gameStartTime = -1L;
@@ -71,12 +79,13 @@ public class GameManager {
         String arenaName = plugin.getConfig().getString("arena-world", "arena");
         World arenaWorld = Bukkit.getWorld(arenaName);
         if (arenaWorld == null) {
-            // 管理者向けにのみ [KB] 付きで通知
             MessageUtil.broadcastAdmin("アリーナワールド '" + arenaName + "' が見つかりません。/kb setup を実行してください。");
             return;
         }
 
         activePlayers.clear();
+        completedBuilders.clear();
+        completedRaters.clear();
         PlotManager plotManager = plugin.getPlotManager();
         plotManager.releaseAll();
 
@@ -93,12 +102,12 @@ public class GameManager {
             Location spawn = plotManager.getPlotSpawn(plotIndex, arenaWorld);
             player.teleport(spawn);
 
-            // テレポート後 1tick 後に GameMode を設定
-            // → Multiverse が teleport に反応してゲームモードを上書きするより後に実行される
+            // テレポート後 2tick 後に GameMode・インベントリを設定
             final Player fp = player;
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 fp.setGameMode(GameMode.CREATIVE);
                 fp.getInventory().clear();
+                fp.getInventory().setItem(8, makeBuildMenuCompass());
                 fp.sendMessage(Component.text(
                     "建築フェーズ開始！制限時間内に自由に建築してください。",
                     NamedTextColor.GREEN, TextDecoration.BOLD
@@ -107,7 +116,11 @@ public class GameManager {
                     "あなたのプロット番号: " + (plotIndex + 1),
                     NamedTextColor.YELLOW
                 ));
-            }, 2L); // 2tick 後（余裕を持たせる）
+                fp.sendMessage(Component.text(
+                    "右端のコンパスで建築完了ボタンを押せます。",
+                    NamedTextColor.GRAY
+                ));
+            }, 2L);
 
             activePlayers.add(uuid);
         }
@@ -121,7 +134,6 @@ public class GameManager {
         gameStartTime = System.currentTimeMillis();
         int buildMinutes = plugin.getConfig().getInt("build-time-minutes", 20);
 
-        // 全員への開始アナウンス（[KB]なし）
         plugin.getServer().broadcast(Component.text(
             "━━━ 建築バトル 建築フェーズ開始！制限時間: " + buildMinutes + " 分 ━━━",
             NamedTextColor.YELLOW, TextDecoration.BOLD
@@ -158,11 +170,64 @@ public class GameManager {
         }.runTaskLater(plugin, (long) buildTotalSec * 20);
     }
 
+    // ─── 建築完了 ────────────────────────────────────────────
+
+    /**
+     * プレイヤーが建築完了を宣言した時に呼ぶ。
+     * 完了後は ADVENTURE モードになりブロック操作不可。
+     */
+    public void markBuildComplete(Player player) {
+        if (state != GameState.BUILDING) return;
+        UUID uuid = player.getUniqueId();
+        if (completedBuilders.contains(uuid)) {
+            player.sendMessage(Component.text("すでに建築完了しています。", NamedTextColor.YELLOW));
+            return;
+        }
+
+        completedBuilders.add(uuid);
+        player.sendMessage(Component.text(
+            "建築完了しました！他のプレイヤーを待っています...",
+            NamedTextColor.GREEN, TextDecoration.BOLD
+        ));
+
+        // 全員に完了通知
+        int done = completedBuilders.size();
+        int total = activePlayers.size();
+        for (UUID uid : activePlayers) {
+            Player p = Bukkit.getPlayer(uid);
+            if (p != null) {
+                p.sendMessage(Component.text(
+                    player.getName() + " が建築完了しました！（" + done + "/" + total + "）",
+                    NamedTextColor.AQUA
+                ));
+            }
+        }
+
+        checkAllBuildComplete();
+    }
+
+    /** 全員が建築完了済みなら評価フェーズへ即移行する。 */
+    private void checkAllBuildComplete() {
+        if (completedBuilders.containsAll(activePlayers)) {
+            // 建築タイマーをキャンセルして即時移行
+            if (buildTimer != null) { buildTimer.cancel(); buildTimer = null; }
+            startRating();
+        }
+    }
+
+    /** プレイヤーが建築完了済みかどうかを返す。BuildListener で使用。 */
+    public boolean isBuildComplete(UUID uuid) {
+        return completedBuilders.contains(uuid);
+    }
+
     // ─── 評価フェーズ ────────────────────────────────────────
 
     private void startRating() {
         if (state != GameState.BUILDING) return;
         state = GameState.RATING;
+
+        completedBuilders.clear();
+        completedRaters.clear();
 
         // 建築フェーズ終了 タイトル表示
         Title buildEndTitle = Title.title(
@@ -180,12 +245,15 @@ public class GameManager {
         buildBossBar = null;
         if (buildCountdownTask != null) { buildCountdownTask.cancel(); buildCountdownTask = null; }
 
-        ItemStack compass = makeCompass();
+        ItemStack ratingCompass = makeRatingCompass();
+        ItemStack menuCompass = makeRatingMenuCompass();
         for (UUID uuid : activePlayers) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
+            p.setGameMode(GameMode.CREATIVE);
             p.getInventory().clear();
-            p.getInventory().setItem(4, compass);
+            p.getInventory().setItem(4, ratingCompass);
+            p.getInventory().setItem(8, menuCompass);
         }
 
         plugin.getRatingManager().startRating(activePlayers);
@@ -226,6 +294,49 @@ public class GameManager {
         }.runTaskLater(plugin, (long) ratingTotalSec * 20);
     }
 
+    // ─── 評価完了 ────────────────────────────────────────────
+
+    /**
+     * プレイヤーが評価完了を宣言した時に呼ぶ。
+     */
+    public void markRatingComplete(Player player) {
+        if (state != GameState.RATING) return;
+        UUID uuid = player.getUniqueId();
+        if (completedRaters.contains(uuid)) {
+            player.sendMessage(Component.text("すでに評価完了しています。", NamedTextColor.YELLOW));
+            return;
+        }
+
+        completedRaters.add(uuid);
+        player.sendMessage(Component.text(
+            "評価完了しました！他のプレイヤーを待っています...",
+            NamedTextColor.GREEN, TextDecoration.BOLD
+        ));
+
+        // 全員に完了通知
+        int done = completedRaters.size();
+        int total = activePlayers.size();
+        for (UUID uid : activePlayers) {
+            Player p = Bukkit.getPlayer(uid);
+            if (p != null) {
+                p.sendMessage(Component.text(
+                    player.getName() + " が評価完了しました！（" + done + "/" + total + "）",
+                    NamedTextColor.LIGHT_PURPLE
+                ));
+            }
+        }
+
+        checkAllRatingComplete();
+    }
+
+    /** 全員が評価完了済みならゲームを即終了する。 */
+    private void checkAllRatingComplete() {
+        if (completedRaters.containsAll(activePlayers)) {
+            if (ratingTimer != null) { ratingTimer.cancel(); ratingTimer = null; }
+            endGame();
+        }
+    }
+
     // ─── ゲーム終了 ──────────────────────────────────────────
 
     public void endGame() {
@@ -247,13 +358,11 @@ public class GameManager {
         String arenaName = plugin.getConfig().getString("arena-world", "arena");
         World arenaWorld = Bukkit.getWorld(arenaName);
         if (arenaWorld != null) {
-            // アリーナのエンティティー（プレイヤー以外）を全部キル
             for (org.bukkit.entity.Entity entity : arenaWorld.getEntities()) {
                 if (!(entity instanceof Player)) {
                     entity.remove();
                 }
             }
-            // 割り当て済みプロットをすべてリセット（全員ログアウト中でも正しくリセットされる）
             for (int i = 0; i < 16; i++) {
                 final int plotIndex = i;
                 new BukkitRunnable() {
@@ -267,6 +376,8 @@ public class GameManager {
         plugin.getRatingManager().reset();
         plugin.getPlotManager().releaseAll();
         activePlayers.clear();
+        completedBuilders.clear();
+        completedRaters.clear();
 
         plugin.getServer().broadcast(Component.text(
             "━━━ 建築バトル終了！ロビーに戻ります ━━━",
@@ -284,12 +395,10 @@ public class GameManager {
     }
 
     public void forceStop() {
-        // タイマーをすべてキャンセルし、強制的に IDLE に移行
         cancelTimers();
         if (state != GameState.IDLE) {
             endGame();
         }
-        // endGame が IDLE にしていない場合の安全策
         state = GameState.IDLE;
     }
 
@@ -302,6 +411,8 @@ public class GameManager {
         if (ratingCountdownTask != null) { ratingCountdownTask.cancel(); ratingCountdownTask = null; }
         hideBossBarFromPlayers(buildBossBar); buildBossBar = null;
         hideBossBarFromPlayers(ratingBossBar); ratingBossBar = null;
+        completedBuilders.clear();
+        completedRaters.clear();
     }
 
     private Location getLobbySpawn(String lobbyWorldName) {
@@ -316,10 +427,29 @@ public class GameManager {
         return new Location(lobbyWorld, x, y, z, yaw, pitch);
     }
 
-    private ItemStack makeCompass() {
+    /** 建築フェーズ用メニューコンパス（スロット8）。 */
+    private ItemStack makeBuildMenuCompass() {
+        ItemStack item = new ItemStack(Material.COMPASS);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("建築メニュー", NamedTextColor.GREEN));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /** 評価フェーズ用評価コンパス（スロット4）。 */
+    private ItemStack makeRatingCompass() {
         ItemStack item = new ItemStack(Material.COMPASS);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("建築を評価する", NamedTextColor.LIGHT_PURPLE));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /** 評価フェーズ用メニューコンパス（スロット8）。 */
+    private ItemStack makeRatingMenuCompass() {
+        ItemStack item = new ItemStack(Material.COMPASS);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("評価メニュー", NamedTextColor.AQUA));
         item.setItemMeta(meta);
         return item;
     }
@@ -343,16 +473,11 @@ public class GameManager {
 
     /**
      * プレイヤーがゲーム中に離脱した際に呼ぶ。
-     * ゲーム開始から {@link PenaltyManager#GRACE_PERIOD_MS} 以内の離脱なら
-     * {@link PenaltyManager} にペナルティを記録する。
-     *
-     * <p>LobbyListener の PlayerQuitEvent から呼ぶ。
      */
     public void handlePlayerQuit(UUID uuid) {
         if (state == GameState.IDLE) return;
         if (!activePlayers.contains(uuid)) return;
 
-        // 3分以内の離脱かチェック
         long elapsed = System.currentTimeMillis() - gameStartTime;
         if (gameStartTime > 0 && elapsed < PenaltyManager.GRACE_PERIOD_MS) {
             plugin.getPenaltyManager().applyPenalty(uuid);
@@ -366,10 +491,20 @@ public class GameManager {
         }
 
         activePlayers.remove(uuid);
+        completedBuilders.remove(uuid);
+        completedRaters.remove(uuid);
 
         // 全員退出したらゲーム終了
         if (activePlayers.isEmpty()) {
             endGame();
+            return;
+        }
+
+        // 離脱後に全員完了チェック（残りメンバーが全員完了していれば移行）
+        if (state == GameState.BUILDING) {
+            checkAllBuildComplete();
+        } else if (state == GameState.RATING) {
+            checkAllRatingComplete();
         }
     }
 }
