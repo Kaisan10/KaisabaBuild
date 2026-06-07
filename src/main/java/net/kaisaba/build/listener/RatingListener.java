@@ -23,7 +23,7 @@ import org.bukkit.inventory.ItemStack;
  * 評価フェーズの GUI 操作・評価完了メニューを処理する。
  *
  * スロット4 コンパス（建築を評価する）右クリック: 評価 GUI を開く
- * スロット8 コンパス（評価メニュー）右クリック: 評価完了メニューを開く
+ * 評価 GUI スロット26: 評価完了確認メニューを開く
  * GUI クリック: RatingManager に委譲 or 完了処理
  * 評価フェーズ中のドロップ: キャンセル
  */
@@ -31,8 +31,6 @@ public class RatingListener implements Listener {
 
     private static final String RATING_GUI_TITLE = "建築を評価する";
     private static final String RATING_COMPASS_NAME = "建築を評価する";
-    private static final String RATING_MENU_COMPASS_NAME = "評価メニュー";
-    private static final String RATING_MENU_TITLE = "評価メニュー";
     private static final String RATING_CONFIRM_TITLE = "評価完了の確認";
 
     private final KaisabaBuild plugin;
@@ -56,9 +54,6 @@ public class RatingListener implements Listener {
         if (RATING_COMPASS_NAME.equals(name)) {
             event.setCancelled(true);
             plugin.getRatingManager().openRatingGui(player);
-        } else if (RATING_MENU_COMPASS_NAME.equals(name)) {
-            event.setCancelled(true);
-            openRatingMenu(player);
         }
     }
 
@@ -72,13 +67,11 @@ public class RatingListener implements Listener {
 
         if (plain.equals(RATING_GUI_TITLE)) {
             event.setCancelled(true);
-            plugin.getRatingManager().handleGuiClick(player, event.getSlot());
-            return;
-        }
-
-        if (plain.equals(RATING_MENU_TITLE)) {
-            event.setCancelled(true);
-            handleRatingMenuClick(player, event.getSlot());
+            if (event.getSlot() == 26) {
+                openRatingConfirm(player);
+            } else {
+                plugin.getRatingManager().handleGuiClick(player, event.getSlot());
+            }
             return;
         }
 
@@ -107,27 +100,9 @@ public class RatingListener implements Listener {
 
     // ─── GUI ────────────────────────────────────────────────
 
-    private void openRatingMenu(Player player) {
-        Inventory inv = plugin.getServer().createInventory(null, 9,
-            Component.text(RATING_MENU_TITLE, NamedTextColor.AQUA));
-
-        inv.setItem(2, InventoryUtil.makeItem(
-            Material.LIME_DYE,
-            Component.text("評価完了", NamedTextColor.GREEN),
-            Component.text("評価を完了して結果発表を待ちます", NamedTextColor.GRAY)
-        ));
-
-        inv.setItem(6, InventoryUtil.makeItem(
-            Material.RED_DYE,
-            Component.text("閉じる", NamedTextColor.RED)
-        ));
-
-        player.openInventory(inv);
-    }
-
     private void openRatingConfirm(Player player) {
         Inventory inv = plugin.getServer().createInventory(null, 9,
-            Component.text(RATING_CONFIRM_TITLE, NamedTextColor.GOLD));
+            Component.text(RATING_CONFIRM_TITLE, NamedTextColor.DARK_GREEN));
 
         inv.setItem(2, InventoryUtil.makeItem(
             Material.LIME_CONCRETE,
@@ -142,14 +117,6 @@ public class RatingListener implements Listener {
         ));
 
         player.openInventory(inv);
-    }
-
-    private void handleRatingMenuClick(Player player, int slot) {
-        if (slot == 2) {
-            openRatingConfirm(player);
-        } else if (slot == 6) {
-            player.closeInventory();
-        }
     }
 
     private void handleRatingConfirmClick(Player player, int slot) {

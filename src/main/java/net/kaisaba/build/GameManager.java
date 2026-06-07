@@ -246,14 +246,12 @@ public class GameManager {
         if (buildCountdownTask != null) { buildCountdownTask.cancel(); buildCountdownTask = null; }
 
         ItemStack ratingCompass = makeRatingCompass();
-        ItemStack menuCompass = makeRatingMenuCompass();
         for (UUID uuid : activePlayers) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
             p.setGameMode(GameMode.CREATIVE);
             p.getInventory().clear();
             p.getInventory().setItem(4, ratingCompass);
-            p.getInventory().setItem(8, menuCompass);
         }
 
         plugin.getRatingManager().startRating(activePlayers);
@@ -445,14 +443,7 @@ public class GameManager {
         return item;
     }
 
-    /** 評価フェーズ用メニューコンパス（スロット8）。 */
-    private ItemStack makeRatingMenuCompass() {
-        ItemStack item = new ItemStack(Material.COMPASS);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("評価メニュー", NamedTextColor.AQUA));
-        item.setItemMeta(meta);
-        return item;
-    }
+
 
     /** 参加中の全プレイヤーにボスバーを表示する。 */
     private void showBossBarToPlayers(BossBar bar) {
