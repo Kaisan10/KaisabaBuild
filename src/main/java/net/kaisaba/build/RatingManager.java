@@ -95,7 +95,7 @@ public class RatingManager {
         // 現在の評価値（未評価なら 0）
         int currentScore = myRatings.getOrDefault(targetUuid, 0);
 
-        Inventory inv = Bukkit.createInventory(null, 27,
+        Inventory inv = Bukkit.createInventory(null, 36,
             Component.text(GUI_TITLE, NamedTextColor.DARK_PURPLE));
 
         // スロット 4: 現在の対象名
@@ -125,6 +125,13 @@ public class RatingManager {
         inv.setItem(17, InventoryUtil.makeItem(
             Material.ARROW,
             Component.text("次の建築 →", NamedTextColor.AQUA)
+        ));
+
+        // スロット 26: 評価完了ボタン
+        inv.setItem(26, InventoryUtil.makeItem(
+            Material.LIME_DYE,
+            Component.text("評価完了", NamedTextColor.GREEN),
+            Component.text("評価を完了して結果発表を待ちます", NamedTextColor.GRAY)
         ));
 
         rater.openInventory(inv);
