@@ -24,7 +24,7 @@ import java.util.UUID;
  * WorldEdit の EditSessionEvent にプロセッサを追加し、
  * 建築フェーズ中のプレイヤーが自分のプロット外を編集できないようにする。
  *
- * <p>FAWEはExtentチェーンをバイパスしてチャンク直書きするため、
+ * FAWEはExtentチェーンをバイパスしてチャンク直書きするため、
  * setExtent / MaskingExtent は効かない。
  * FaweRegionExtent を継承した IBatchProcessor として
  * addProcessor() で注入することで、チャンクレベルで制限する。

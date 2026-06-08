@@ -95,7 +95,7 @@ public class RatingManager {
         // 現在の評価値（未評価なら 0）
         int currentScore = myRatings.getOrDefault(targetUuid, 0);
 
-        Inventory inv = Bukkit.createInventory(null, 36,
+        Inventory inv = Bukkit.createInventory(null, 27,
             Component.text(GUI_TITLE, NamedTextColor.DARK_PURPLE));
 
         // スロット 4: 現在の対象名
@@ -111,14 +111,14 @@ public class RatingManager {
             Component.text("← 前の建築", NamedTextColor.AQUA)
         ));
 
-        // スロット 11-15: ★1 〜 ★5（中央に配置）
+        // スロット 11-15: ★1 〜 ★5（2段目中央5マス）
         for (int star = 1; star <= 5; star++) {
             Material mat = isSelf ? Material.GRAY_DYE
                 : (star <= currentScore) ? Material.GOLD_NUGGET : Material.IRON_NUGGET;
             Component name = isSelf
                 ? Component.text("自分の建築は評価できません", NamedTextColor.GRAY)
                 : Component.text("★".repeat(star), NamedTextColor.GOLD);
-            inv.setItem(9 + star, InventoryUtil.makeItem(mat, name));
+            inv.setItem(10 + star, InventoryUtil.makeItem(mat, name));
         }
 
         // スロット 17: 次へ
@@ -127,8 +127,8 @@ public class RatingManager {
             Component.text("次の建築 →", NamedTextColor.AQUA)
         ));
 
-        // スロット 26: 評価完了ボタン
-        inv.setItem(26, InventoryUtil.makeItem(
+        // スロット 22: 評価完了ボタン（3段目中央）
+        inv.setItem(22, InventoryUtil.makeItem(
             Material.LIME_DYE,
             Component.text("評価完了", NamedTextColor.GREEN),
             Component.text("評価を完了して結果発表を待ちます", NamedTextColor.GRAY)
@@ -150,13 +150,13 @@ public class RatingManager {
         UUID targetUuid = targets.get(pointer);
         boolean isSelf = targetUuid.equals(raterUuid);
 
-        // ★1〜★5 (slot 10-14)
-        if (slot >= 10 && slot <= 14) {
+        // ★1〜★5 (slot 11-15)
+        if (slot >= 11 && slot <= 15) {
             if (isSelf) {
                 MessageUtil.send(rater, Component.text("自分の建築は評価できません。", NamedTextColor.RED));
                 return false;
             }
-            int score = slot - 9; // 1〜5
+            int score = slot - 10; // 1〜5
             ratings.get(raterUuid).put(targetUuid, score);
             // 評価後に次へ進み、openRatingGui内で全評価完了チェック
             pointers.put(raterUuid, (pointer + 1) % targets.size());

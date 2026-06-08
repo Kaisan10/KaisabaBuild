@@ -10,7 +10,7 @@ import org.bukkit.entity.Player;
  * メッセージ送信ユーティリティ。
  *
  * プレイヤー向け: プレフィックスなし（[KB] は見せない）
- * 管理者向け:     [KB] プレフィックス付き
+ * 管理者向け: [KB] プレフィックス付き
  */
 public final class MessageUtil {
 
@@ -19,7 +19,7 @@ public final class MessageUtil {
 
     private MessageUtil() {}
 
-    // ─── プレイヤー向け（プレフィックスなし） ───────────────
+    // プレイヤー向け（プレフィックスなし） 
 
     public static void send(CommandSender sender, String message) {
         sender.sendMessage(Component.text(message));

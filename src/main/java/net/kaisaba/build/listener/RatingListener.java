@@ -67,7 +67,7 @@ public class RatingListener implements Listener {
 
         if (plain.equals(RATING_GUI_TITLE)) {
             event.setCancelled(true);
-            if (event.getSlot() == 26) {
+            if (event.getSlot() == 22) {
                 openRatingConfirm(player);
             } else {
                 plugin.getRatingManager().handleGuiClick(player, event.getSlot());
@@ -104,13 +104,13 @@ public class RatingListener implements Listener {
         Inventory inv = plugin.getServer().createInventory(null, 9,
             Component.text(RATING_CONFIRM_TITLE, NamedTextColor.DARK_GREEN));
 
-        inv.setItem(2, InventoryUtil.makeItem(
+        inv.setItem(1, InventoryUtil.makeItem(
             Material.LIME_CONCRETE,
             Component.text("はい", NamedTextColor.GREEN),
             Component.text("評価を完了します。", NamedTextColor.GRAY)
         ));
 
-        inv.setItem(6, InventoryUtil.makeItem(
+        inv.setItem(7, InventoryUtil.makeItem(
             Material.RED_CONCRETE,
             Component.text("いいえ", NamedTextColor.RED),
             Component.text("評価に戻ります。", NamedTextColor.GRAY)
