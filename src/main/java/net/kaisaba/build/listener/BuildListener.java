@@ -181,7 +181,7 @@ public class BuildListener implements Listener {
 
     private void openBuildMenu(Player player) {
         Inventory inv = plugin.getServer().createInventory(null, 9,
-            Component.text(BUILD_MENU_TITLE, NamedTextColor.GREEN));
+            Component.text(BUILD_MENU_TITLE, NamedTextColor.DARK_GREEN));
 
         inv.setItem(2, InventoryUtil.makeItem(
             Material.LIME_DYE,
@@ -273,7 +273,6 @@ public class BuildListener implements Listener {
         int blockPlot = plugin.getPlotManager().getPlotAtLocation(block.getLocation());
 
         if (playerPlot != blockPlot || blockPlot < 0) {
-            player.sendMessage(Component.text("自分のプロット以外では建築ができません。", NamedTextColor.RED));
             return true;
         }
 
