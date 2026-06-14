@@ -174,7 +174,6 @@ public class GameManager {
 
     /**
      * プレイヤーが建築完了を宣言した時に呼ぶ。
-     * 完了後は ADVENTURE モードになりブロック操作不可。
      */
     public void markBuildComplete(Player player) {
         if (state != GameState.BUILDING) return;
@@ -245,16 +244,24 @@ public class GameManager {
         buildBossBar = null;
         if (buildCountdownTask != null) { buildCountdownTask.cancel(); buildCountdownTask = null; }
 
-        ItemStack ratingCompass = makeRatingCompass();
         for (UUID uuid : activePlayers) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
-            p.setGameMode(GameMode.CREATIVE);
             p.getInventory().clear();
-            p.getInventory().setItem(4, ratingCompass);
         }
 
         plugin.getRatingManager().startRating(activePlayers);
+
+        // ホットバーはstartRating後に配布し、最初の対象のプロットへテレポートする
+        for (UUID uuid : activePlayers) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                plugin.getRatingManager().giveRatingHotbar(p);
+                if (!activePlayers.isEmpty()) {
+                    plugin.getRatingManager().teleportToTarget(p, activePlayers.get(0));
+                }
+            }
+        }
 
         int ratingMinutes = plugin.getConfig().getInt("rating-time-minutes", 5);
         plugin.getServer().broadcast(Component.text(
@@ -310,6 +317,7 @@ public class GameManager {
             "評価完了しました！他のプレイヤーを待っています...",
             NamedTextColor.GREEN, TextDecoration.BOLD
         ));
+        plugin.getRatingManager().lockHotbar(player);
 
         // 全員に完了通知
         int done = completedRaters.size();
@@ -434,14 +442,7 @@ public class GameManager {
         return item;
     }
 
-    /** 評価フェーズ用評価コンパス（スロット4）。 */
-    private ItemStack makeRatingCompass() {
-        ItemStack item = new ItemStack(Material.COMPASS);
-        ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("建築を評価する", NamedTextColor.LIGHT_PURPLE));
-        item.setItemMeta(meta);
-        return item;
-    }
+
 
 
 

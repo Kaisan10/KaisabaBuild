@@ -8,29 +8,37 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 
 /**
- * 評価データの保存・GUI の開閉・結果集計を管理する。
+ * 評価データの保存・ホットバー配布・結果集計を管理する。
  *
- * ratings: 「評価者 → (被評価者 → 点数)」の二重 Map
- * pointers: 各評価者が現在何番目の建築を見ているか
+ * ホットバー構成:
+ *   スロット0: 矢（次の建築へ）
+ *   スロット1: 空
+ *   スロット2: ☆1
+ *   スロット3: ☆2
+ *   スロット4: ☆3
+ *   スロット5: ☆4
+ *   スロット6: ☆5
+ *   スロット7: 空
+ *   スロット8: 評価完了ボタン
  *
+ * RatingListener側はスロット番号で操作を判定する（アイテム名依存なし）。
  */
 public class RatingManager {
-
-    private static final String GUI_TITLE = "建築を評価する";
 
     /** 評価者UUID → (被評価者UUID → 点数) */
     private final Map<UUID, Map<UUID, Integer>> ratings = new HashMap<>();
 
-    /** 評価者UUID → 現在のポインタ（被評価者リスト内の index） */
+    /** 評価者UUID → 現在のポインタ */
     private final Map<UUID, Integer> pointers = new HashMap<>();
 
-    /** 評価フェーズの被評価者リスト（ゲーム参加者全員）。評価者自身を除いて表示。 */
+    /** 評価完了済みプレイヤー（ホットバーをロックするため） */
+    private final Set<UUID> hotbarLocked = new HashSet<>();
+
+    /** 評価フェーズの被評価者リスト */
     private List<UUID> participants = new ArrayList<>();
 
     private final KaisabaBuild plugin;
@@ -39,10 +47,11 @@ public class RatingManager {
         this.plugin = plugin;
     }
 
-    /** 評価フェーズ開始時に呼ぶ。参加者リストをセットして各人の GUI を初期化。 */
+    /** 評価フェーズ開始時に呼ぶ。 */
     public void startRating(List<UUID> participantList) {
         ratings.clear();
         pointers.clear();
+        hotbarLocked.clear();
         participants = new ArrayList<>(participantList);
 
         for (UUID uuid : participantList) {
@@ -55,154 +64,187 @@ public class RatingManager {
     public void reset() {
         ratings.clear();
         pointers.clear();
+        hotbarLocked.clear();
         participants.clear();
     }
 
-    // ─── GUI ────────────────────────────────────────────────
+    // ─── ホットバー ─────────────────────────────────────────
 
-    /** 評価者の現在ポインタが指す被評価者の建築 GUI を開く。 */
-    public void openRatingGui(Player rater) {
-        List<UUID> targets = getTargetsFor(rater.getUniqueId());
-        if (targets.isEmpty()) {
-            MessageUtil.send(rater, Component.text("評価する建築がありません。どうやって始めたの？", NamedTextColor.YELLOW));
+    /**
+     * 評価用ホットバーを配布する。
+     * 評価完了済み（hotbarLocked）のプレイヤーには giveCompletedHotbar を呼ぶ。
+     */
+    public void giveRatingHotbar(Player rater) {
+        UUID raterUuid = rater.getUniqueId();
+
+        // 完了済みプレイヤーには完了ホットバーを渡してそれ以上触らない
+        if (hotbarLocked.contains(raterUuid)) {
+            giveCompletedHotbar(rater);
             return;
         }
 
-        // 全建築を評価済みかチェック（自分以外の全員が対象）
-        Map<UUID, Integer> myRatings = ratings.get(rater.getUniqueId());
-        List<UUID> rateable = targets.stream()
-            .filter(u -> !u.equals(rater.getUniqueId()))
-            .toList();
-        boolean allRated = rateable.stream().allMatch(myRatings::containsKey);
-        if (allRated && !rateable.isEmpty()) {
-            rater.closeInventory();
-            MessageUtil.send(rater, Component.text(
-                "全ての建築の評価が完了したら評価メニューから完了ボタンを押してください。",
-                NamedTextColor.GREEN
-            ));
-            return;
-        }
+        List<UUID> targets = getTargetsFor(raterUuid);
 
-        int pointer = pointers.getOrDefault(rater.getUniqueId(), 0);
-        pointer = pointer % targets.size();
-        pointers.put(rater.getUniqueId(), pointer);
+        int pointer = pointers.getOrDefault(raterUuid, 0);
+        if (!targets.isEmpty()) pointer = pointer % targets.size();
+        UUID targetUuid = targets.isEmpty() ? null : targets.get(pointer);
+        boolean isSelf = targetUuid != null && targetUuid.equals(raterUuid);
 
-        UUID targetUuid = targets.get(pointer);
-        Player target = Bukkit.getPlayer(targetUuid);
-        String targetName = (target != null) ? target.getName() : targetUuid.toString().substring(0, 8);
-        boolean isSelf = targetUuid.equals(rater.getUniqueId());
+        String targetName = resolvePlayerName(targetUuid);
+        Map<UUID, Integer> myRatings = ratings.getOrDefault(raterUuid, new HashMap<>());
+        int currentScore = (targetUuid != null) ? myRatings.getOrDefault(targetUuid, 0) : 0;
 
-        // 現在の評価値（未評価なら 0）
-        int currentScore = myRatings.getOrDefault(targetUuid, 0);
+        // 全員評価完了チェック（自分除く）
+        List<UUID> rateable = targets.stream().filter(u -> !u.equals(raterUuid)).toList();
+        boolean allRated = !rateable.isEmpty() && rateable.stream().allMatch(myRatings::containsKey);
 
-        Inventory inv = Bukkit.createInventory(null, 27,
-            Component.text(GUI_TITLE, NamedTextColor.DARK_PURPLE));
+        rater.getInventory().clear();
 
-        // スロット 4: 現在の対象名
-        inv.setItem(4, InventoryUtil.makeItem(
-            isSelf ? Material.PLAYER_HEAD : Material.WRITTEN_BOOK,
-            Component.text(targetName + " の建築" + (isSelf ? "  (自分)" : ""), NamedTextColor.YELLOW, TextDecoration.BOLD),
-            Component.text("(" + (pointer + 1) + "/" + targets.size() + ")", NamedTextColor.GRAY)
-        ));
-
-        // スロット 9: 前へ
-        inv.setItem(9, InventoryUtil.makeItem(
+        // スロット0: 矢（次の建築へ）
+        String arrowLabel = isSelf
+            ? "次の建築 → (今: 自分)"
+            : "次の建築 →  [" + targetName + "]";
+        Component arrowLore = isSelf
+            ? Component.text("自分の建築を見ています", NamedTextColor.GRAY)
+            : Component.text("(" + (pointer + 1) + "/" + targets.size() + ")", NamedTextColor.GRAY);
+        rater.getInventory().setItem(0, InventoryUtil.makeItem(
             Material.ARROW,
-            Component.text("← 前の建築", NamedTextColor.AQUA)
+            Component.text(arrowLabel, NamedTextColor.AQUA),
+            arrowLore
         ));
 
-        // スロット 11-15: ★1 〜 ★5（2段目中央5マス）
+        // スロット2〜6: ☆1〜☆5
         for (int star = 1; star <= 5; star++) {
-            Material mat = isSelf ? Material.GRAY_DYE
-                : (star <= currentScore) ? Material.GOLD_NUGGET : Material.IRON_NUGGET;
-            Component name = isSelf
-                ? Component.text("自分の建築は評価できません", NamedTextColor.GRAY)
-                : Component.text("★".repeat(star), NamedTextColor.GOLD);
-            inv.setItem(10 + star, InventoryUtil.makeItem(mat, name));
+            int slot = star + 1; // 2〜6
+            if (isSelf) {
+                rater.getInventory().setItem(slot, InventoryUtil.makeItem(
+                    Material.GRAY_CONCRETE,
+                    Component.text("自分の建築は評価できません", NamedTextColor.GRAY)
+                ));
+            } else {
+                boolean selected = (star <= currentScore);
+                Material mat = selected ? Material.YELLOW_CONCRETE : Material.WHITE_CONCRETE;
+                String starLabel = "☆".repeat(star) + "  [" + targetName + "]";
+                Component starName = Component.text(starLabel, selected ? NamedTextColor.GOLD : NamedTextColor.WHITE);
+                rater.getInventory().setItem(slot, InventoryUtil.makeItem(mat, starName));
+            }
         }
 
-        // スロット 17: 次へ
-        inv.setItem(17, InventoryUtil.makeItem(
-            Material.ARROW,
-            Component.text("次の建築 →", NamedTextColor.AQUA)
-        ));
-
-        // スロット 22: 評価完了ボタン（3段目中央）
-        inv.setItem(22, InventoryUtil.makeItem(
-            Material.LIME_DYE,
-            Component.text("評価完了", NamedTextColor.GREEN),
-            Component.text("評価を完了して結果発表を待ちます", NamedTextColor.GRAY)
-        ));
-
-        rater.openInventory(inv);
+        // スロット8: 評価完了ボタン
+        Material completeMat = allRated ? Material.LIME_CONCRETE : Material.RED_CONCRETE;
+        Component completeLabel = Component.text("評価完了", allRated ? NamedTextColor.GREEN : NamedTextColor.RED);
+        Component completeLore = allRated
+            ? Component.text("全員の評価が完了！右クリックで完了。", NamedTextColor.GREEN)
+            : Component.text("まだ評価していない建築があります。", NamedTextColor.RED);
+        rater.getInventory().setItem(8, InventoryUtil.makeItem(completeMat, completeLabel, completeLore));
     }
 
     /**
-     * GUI クリック処理。RatingListener から呼ぶ。
-     *
-     * @param slot クリックされたスロット番号
-     * @return true なら GUI を再描画する（openRatingGui を再度呼ぶ）
+     * 評価完了後のホットバー（ロック状態）。
      */
-    public boolean handleGuiClick(Player rater, int slot) {
+    public void giveCompletedHotbar(Player rater) {
+        rater.getInventory().clear();
+        rater.getInventory().setItem(4, InventoryUtil.makeItem(
+            Material.LIME_CONCRETE,
+            Component.text("評価完了済み", NamedTextColor.GREEN),
+            Component.text("他のプレイヤーの評価を待っています...", NamedTextColor.GRAY)
+        ));
+    }
+
+    /**
+     * 評価完了としてロックする（GameManager.markRatingComplete から呼ぶ）。
+     */
+    public void lockHotbar(Player rater) {
+        hotbarLocked.add(rater.getUniqueId());
+        giveCompletedHotbar(rater);
+    }
+
+    // ─── インタラクション処理（スロット番号で判定）──────────────
+
+    /** スロット0: 次の建築へ。 */
+    public void handleNextArrow(Player rater) {
         UUID raterUuid = rater.getUniqueId();
+        if (hotbarLocked.contains(raterUuid)) return;
+
         List<UUID> targets = getTargetsFor(raterUuid);
+        if (targets.isEmpty()) return;
+
+        int pointer = pointers.getOrDefault(raterUuid, 0);
+        int newPointer = (pointer + 1) % targets.size();
+        pointers.put(raterUuid, newPointer);
+
+        UUID newTarget = targets.get(newPointer);
+        teleportToTarget(rater, newTarget);
+        giveRatingHotbar(rater);
+    }
+
+    /**
+     * スロット2〜6: ☆評価。
+     * @param star 1〜5
+     */
+    public void handleStarClick(Player rater, int star) {
+        UUID raterUuid = rater.getUniqueId();
+        if (hotbarLocked.contains(raterUuid)) return;
+
+        List<UUID> targets = getTargetsFor(raterUuid);
+        if (targets.isEmpty()) return;
+
         int pointer = pointers.getOrDefault(raterUuid, 0) % targets.size();
         UUID targetUuid = targets.get(pointer);
-        boolean isSelf = targetUuid.equals(raterUuid);
 
-        // ★1〜★5 (slot 11-15)
-        if (slot >= 11 && slot <= 15) {
-            if (isSelf) {
-                MessageUtil.send(rater, Component.text("自分の建築は評価できません。", NamedTextColor.RED));
-                return false;
-            }
-            int score = slot - 10; // 1〜5
-            ratings.get(raterUuid).put(targetUuid, score);
-            // 評価後に次へ進み、openRatingGui内で全評価完了チェック
-            pointers.put(raterUuid, (pointer + 1) % targets.size());
-            openRatingGui(rater);
+        if (targetUuid.equals(raterUuid)) {
+            MessageUtil.send(rater, Component.text("自分の建築は評価できません。", NamedTextColor.RED));
+            return;
+        }
+
+        ratings.get(raterUuid).put(targetUuid, star);
+        MessageUtil.send(rater, Component.text(
+            resolvePlayerName(targetUuid) + " の建築を ☆" + star + " で評価しました！",
+            NamedTextColor.YELLOW
+        ));
+
+        // UIを更新（選択した☆の表示を反映）
+        giveRatingHotbar(rater);
+    }
+
+    /**
+     * スロット8: 評価完了ボタン。
+     * 全員分の評価が済んでいない場合は拒否してメッセージ送信。
+     * @return true なら確認GUIを開いてよい
+     */
+    public boolean canComplete(Player rater) {
+        UUID raterUuid = rater.getUniqueId();
+        if (hotbarLocked.contains(raterUuid)) return false;
+
+        Map<UUID, Integer> myRatings = ratings.getOrDefault(raterUuid, new HashMap<>());
+        List<UUID> rateable = getTargetsFor(raterUuid).stream()
+            .filter(u -> !u.equals(raterUuid)).toList();
+
+        if (rateable.isEmpty() || rateable.stream().allMatch(myRatings::containsKey)) {
             return true;
         }
 
-        // ← 前 (slot 9)
-        if (slot == 9) {
-            pointers.put(raterUuid, (pointer - 1 + targets.size()) % targets.size());
-            openRatingGui(rater);
-            return true;
-        }
-
-        // 次 → (slot 17)
-        if (slot == 17) {
-            pointers.put(raterUuid, (pointer + 1) % targets.size());
-            openRatingGui(rater);
-            return true;
-        }
-
+        MessageUtil.send(rater, Component.text(
+            "まだ評価していない建築があります！全員分を評価してから完了してください。",
+            NamedTextColor.RED
+        ));
         return false;
     }
 
     // ─── 結果集計 ────────────────────────────────────────────
 
-    /**
-     * 全プレイヤーの平均点を計算してアナウンスする。
-     * GameManager のゲーム終了時に呼ぶ。
-     */
     public void announceResults() {
-        // 平均点 Map: UUID → 平均点
         Map<UUID, Double> averages = new LinkedHashMap<>();
         for (UUID target : participants) {
             List<Integer> scores = new ArrayList<>();
             for (Map<UUID, Integer> raterMap : ratings.values()) {
-                if (raterMap.containsKey(target)) {
-                    scores.add(raterMap.get(target));
-                }
+                if (raterMap.containsKey(target)) scores.add(raterMap.get(target));
             }
             double avg = scores.isEmpty() ? 0.0
                 : scores.stream().mapToInt(Integer::intValue).average().orElse(0.0);
             averages.put(target, avg);
         }
 
-        // 降順ソート
         List<Map.Entry<UUID, Double>> sorted = new ArrayList<>(averages.entrySet());
         sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
 
@@ -212,13 +254,11 @@ public class RatingManager {
         double prevScore = Double.MAX_VALUE;
         for (Map.Entry<UUID, Double> entry : sorted) {
             count++;
-            // 前の点数と異なる場合のみ順位を更新（同点なら同順位）
             if (entry.getValue() < prevScore) {
                 rank = count;
                 prevScore = entry.getValue();
             }
-            Player p = Bukkit.getPlayer(entry.getKey());
-            String name = (p != null) ? p.getName() : entry.getKey().toString().substring(0, 8);
+            String name = resolvePlayerName(entry.getKey());
             MessageUtil.broadcast(Component.text(
                 rank + "位: " + name + "  平均 " + String.format("%.1f", entry.getValue()) + " 点",
                 rank == 1 ? NamedTextColor.GOLD : rank == 2 ? NamedTextColor.GRAY : NamedTextColor.WHITE
@@ -228,12 +268,18 @@ public class RatingManager {
 
     // ─── 内部ユーティリティ ─────────────────────────────────
 
-    /** 全参加者リストを返す（自分を含む）。自分の建築は評価不可だが選択肢には表示する。 */
     private List<UUID> getTargetsFor(UUID raterUuid) {
         return new ArrayList<>(participants);
     }
 
-    /** 被評価者のプロットスポーンへ評価者をテレポート（← / → ボタン用）。 */
+    private String resolvePlayerName(UUID uuid) {
+        if (uuid == null) return "不明";
+        Player p = Bukkit.getPlayer(uuid);
+        if (p != null) return p.getName();
+        return Optional.ofNullable(Bukkit.getOfflinePlayer(uuid).getName())
+            .orElse(uuid.toString().substring(0, 8));
+    }
+
     public void teleportToTarget(Player rater, UUID targetUuid) {
         String arenaName = plugin.getConfig().getString("arena-world", "arena");
         org.bukkit.World arenaWorld = Bukkit.getWorld(arenaName);
@@ -242,7 +288,20 @@ public class RatingManager {
         int plotIndex = plugin.getPlotManager().getPlotIndexByUuid(targetUuid);
         if (plotIndex < 0) return;
 
-        org.bukkit.Location loc = plugin.getPlotManager().getPlotSpawn(plotIndex, arenaWorld);
-        rater.teleport(loc);
+        org.bukkit.Location base = plugin.getPlotManager().getPlotSpawn(plotIndex, arenaWorld);
+        int safeY = base.getBlockY();
+        for (int y = 126; y >= base.getBlockY(); y--) {
+            org.bukkit.block.Block feet  = arenaWorld.getBlockAt(base.getBlockX(), y,     base.getBlockZ());
+            org.bukkit.block.Block head  = arenaWorld.getBlockAt(base.getBlockX(), y + 1, base.getBlockZ());
+            org.bukkit.block.Block below = arenaWorld.getBlockAt(base.getBlockX(), y - 1, base.getBlockZ());
+            if (feet.getType() == org.bukkit.Material.AIR
+                    && head.getType() == org.bukkit.Material.AIR
+                    && below.getType() != org.bukkit.Material.AIR) {
+                safeY = y;
+                break;
+            }
+        }
+        rater.teleport(new org.bukkit.Location(arenaWorld, base.getX(), safeY, base.getZ(),
+                base.getYaw(), base.getPitch()));
     }
 }

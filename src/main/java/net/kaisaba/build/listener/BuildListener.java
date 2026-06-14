@@ -226,11 +226,11 @@ public class BuildListener implements Listener {
     }
 
     private void handleBuildConfirmClick(Player player, int slot) {
-        if (slot == 2) {
+        if (slot == 1) {
             // はい
             player.closeInventory();
             plugin.getGameManager().markBuildComplete(player);
-        } else if (slot == 6) {
+        } else if (slot == 7) {
             // いいえ
             player.closeInventory();
         }
