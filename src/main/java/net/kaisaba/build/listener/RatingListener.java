@@ -15,22 +15,21 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * 評価フェーズの GUI 操作・評価完了メニューを処理する。
+ * 評価フェーズのホットバー操作・評価完了確認メニューを処理する。
  *
- * スロット4 コンパス（建築を評価する）右クリック: 評価 GUI を開く
- * 評価 GUI スロット26: 評価完了確認メニューを開く
- * GUI クリック: RatingManager に委譲 or 完了処理
- * 評価フェーズ中のドロップ: キャンセル
+ * ホットバーのスロット番号で操作を判定（アイテム名依存なし）:
+ *   スロット0: 矢（次の建築へ）
+ *   スロット2〜6: ☆1〜☆5
+ *   スロット8: 評価完了ボタン
  */
 public class RatingListener implements Listener {
 
-    private static final String RATING_GUI_TITLE = "建築を評価する";
-    private static final String RATING_COMPASS_NAME = "建築を評価する";
     private static final String RATING_CONFIRM_TITLE = "評価完了の確認";
 
     private final KaisabaBuild plugin;
@@ -47,13 +46,26 @@ public class RatingListener implements Listener {
         if (plugin.getGameManager().getState() != GameState.RATING) return;
 
         Player player = event.getPlayer();
-        ItemStack item = event.getItem();
-        if (item == null || item.getType() != Material.COMPASS) return;
+        int heldSlot = player.getInventory().getHeldItemSlot();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item == null || item.getType() == Material.AIR) return;
 
-        String name = InventoryUtil.getDisplayName(item);
-        if (RATING_COMPASS_NAME.equals(name)) {
-            event.setCancelled(true);
-            plugin.getRatingManager().openRatingGui(player);
+        event.setCancelled(true);
+
+        switch (heldSlot) {
+            case 0 -> // 矢: 次の建築へ
+                plugin.getRatingManager().handleNextArrow(player);
+
+            case 2, 3, 4, 5, 6 -> { // ☆1〜☆5
+                int star = heldSlot - 1; // slot2→1, slot3→2, ..., slot6→5
+                plugin.getRatingManager().handleStarClick(player, star);
+            }
+
+            case 8 -> { // 評価完了ボタン
+                if (plugin.getRatingManager().canComplete(player)) {
+                    openRatingConfirm(player);
+                }
+            }
         }
     }
 
@@ -65,24 +77,26 @@ public class RatingListener implements Listener {
         Component title = event.getView().title();
         String plain = PlainTextComponentSerializer.plainText().serialize(title);
 
-        if (plain.equals(RATING_GUI_TITLE)) {
-            event.setCancelled(true);
-            if (event.getSlot() == 22) {
-                openRatingConfirm(player);
-            } else {
-                plugin.getRatingManager().handleGuiClick(player, event.getSlot());
-            }
-            return;
-        }
-
+        // 評価完了確認GUIのクリックのみ処理
         if (plain.equals(RATING_CONFIRM_TITLE)) {
             event.setCancelled(true);
             handleRatingConfirmClick(player, event.getSlot());
+            return;
         }
+
+        // それ以外のインベントリ操作はすべてキャンセル
+        event.setCancelled(true);
     }
 
     @EventHandler
     public void onPlayerDrop(PlayerDropItemEvent event) {
+        if (plugin.getGameManager().getState() == GameState.RATING) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onSwapHandItems(PlayerSwapHandItemsEvent event) {
         if (plugin.getGameManager().getState() == GameState.RATING) {
             event.setCancelled(true);
         }
@@ -98,7 +112,7 @@ public class RatingListener implements Listener {
         }
     }
 
-    // ─── GUI ────────────────────────────────────────────────
+    // ─── 評価完了確認GUI ─────────────────────────────────────
 
     private void openRatingConfirm(Player player) {
         Inventory inv = plugin.getServer().createInventory(null, 9,
@@ -120,10 +134,10 @@ public class RatingListener implements Listener {
     }
 
     private void handleRatingConfirmClick(Player player, int slot) {
-        if (slot == 2) {
+        if (slot == 1) {
             player.closeInventory();
             plugin.getGameManager().markRatingComplete(player);
-        } else if (slot == 6) {
+        } else if (slot == 7) {
             player.closeInventory();
         }
     }

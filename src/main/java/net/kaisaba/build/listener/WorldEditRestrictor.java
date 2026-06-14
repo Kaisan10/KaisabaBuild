@@ -59,6 +59,12 @@ public class WorldEditRestrictor {
         GameState state = plugin.getGameManager().getState();
         if (state == GameState.IDLE) return;
 
+        // BEFORE_CHANGE は手動ブロック操作（クリック）でも発火する。
+        // BuildListener が手動クリックを制御しているため除外する。
+        // ブラシ（//brush）は BEFORE_HISTORY の setBlock() 経由で動くため、
+        // BEFORE_HISTORY を制限対象にすることでブラシ・コマンド全てをカバーする。
+        if (event.getStage() != com.sk89q.worldedit.EditSession.Stage.BEFORE_HISTORY) return;
+
         UUID uuid = actor.getUniqueId();
         Player player = Bukkit.getPlayer(uuid);
         if (player == null) return;

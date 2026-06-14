@@ -16,6 +16,7 @@ import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.entity.Enderman;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.entity.Shulker;
 
 import java.util.Iterator;
 import java.util.List;
@@ -99,6 +100,27 @@ public class ArenaProtectionListener implements Listener {
         if (!(event.getEntity() instanceof Enderman)) return;
         if (!isArena(event.getEntity().getWorld().getName())) return;
         event.setCancelled(true);
+    }
+
+    // シュルカーテレポート禁止 ─────────────────────────────────────────
+
+    /**
+     * アリーナ内のシュルカーが別プロットへテレポートしようとしたときにキャンセルする。
+     * シュルカーは内部でウォール患イテレポートするため、EntityTeleportEvent で肉える。
+     */
+    @EventHandler
+    public void onShulkerTeleport(EntityTeleportEvent event) {
+        if (!(event.getEntity() instanceof Shulker)) return;
+        if (!isArena(event.getEntity().getWorld().getName())) return;
+        org.bukkit.Location from = event.getFrom();
+        org.bukkit.Location to = event.getTo();
+        if (to == null) return;
+        int fromPlot = plugin.getPlotManager().getPlotAtLocation(from);
+        int toPlot = plugin.getPlotManager().getPlotAtLocation(to);
+        // 別プロットまたはプロット外への移動は禁止
+        if (fromPlot != toPlot) {
+            event.setCancelled(true);
+        }
     }
 
     // ─── 共通ロジック ────────────────────────────────────────
