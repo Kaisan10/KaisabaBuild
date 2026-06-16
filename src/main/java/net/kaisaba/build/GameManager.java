@@ -224,6 +224,7 @@ public class GameManager {
     private void startRating() {
         if (state != GameState.BUILDING) return;
         state = GameState.RATING;
+        plugin.getAntiFreecam().setEnabled(false, activePlayers); // 評価中は全プロットを見せる・チャンク再送トリガー
 
         completedBuilders.clear();
         completedRaters.clear();
@@ -354,6 +355,7 @@ public class GameManager {
         // state を先に IDLE にする → onPlayerTeleport のガードがロビーテレポートをキャンセルしない
         state = GameState.IDLE;
         gameStartTime = -1L;
+        plugin.getAntiFreecam().setEnabled(true); // 評価フェーズ終了 → 再び制限
 
         String lobbyWorldName = plugin.getConfig().getString("lobby-world", "world");
         Location lobbySpawn = getLobbySpawn(lobbyWorldName);

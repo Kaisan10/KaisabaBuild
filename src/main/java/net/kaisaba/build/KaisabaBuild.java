@@ -7,6 +7,8 @@ import net.kaisaba.build.listener.RatingListener;
 import net.kaisaba.build.listener.ArenaProtectionListener;
 import net.kaisaba.build.listener.ServerRuleListener;
 import net.kaisaba.build.listener.WorldEditRestrictor;
+import com.github.retrooper.packetevents.PacketEvents;
+import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -23,6 +25,15 @@ public class KaisabaBuild extends JavaPlugin {
     private RatingManager ratingManager;
     private PenaltyManager penaltyManager;
     private WorldEditRestrictor worldEditRestrictor;
+    private AntiFreecam antiFreecam;
+
+    @Override
+    public void onLoad() {
+        // PacketEvents は onLoad で load() まで済ませないと
+        // Netty への injection が間に合わない
+        PacketEvents.setAPI(SpigotPacketEventsBuilder.build(this));
+        PacketEvents.getAPI().load();
+    }
 
     @Override
     public void onEnable() {
@@ -49,6 +60,11 @@ public class KaisabaBuild extends JavaPlugin {
         worldEditRestrictor = new WorldEditRestrictor(this);
         worldEditRestrictor.register();
 
+        // PacketEvents の有効化 + リスナー登録
+        PacketEvents.getAPI().init();
+        antiFreecam = new AntiFreecam(this, plotManager);
+        PacketEvents.getAPI().getEventManager().registerListener(antiFreecam);
+
         getCommand("kb").setExecutor(new KaisabaBuildCommand(this));
 
         getLogger().info("Hello!!!!!!!!!!!! I'm KaisabaBuild!!!!!!!!!!!");
@@ -59,6 +75,9 @@ public class KaisabaBuild extends JavaPlugin {
         if (worldEditRestrictor != null) {
             worldEditRestrictor.unregister();
         }
+        // PacketEventsの終了処理
+        PacketEvents.getAPI().terminate();
+        
         getLogger().info("KaisabaBuild desu!!!!!!! Sayonara!!!!!!!!!!!!!!");
     }
 
@@ -69,4 +88,5 @@ public class KaisabaBuild extends JavaPlugin {
     public QueueManager getQueueManager() { return queueManager; }
     public RatingManager getRatingManager() { return ratingManager; }
     public PenaltyManager getPenaltyManager() { return penaltyManager; }
+    public AntiFreecam getAntiFreecam() { return antiFreecam; }
 }
