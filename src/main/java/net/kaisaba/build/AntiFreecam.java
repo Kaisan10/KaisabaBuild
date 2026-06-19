@@ -117,13 +117,13 @@ public class AntiFreecam extends PacketListenerAbstract {
         int chunkBlockMinZ = chunkZ << 4;
         int chunkBlockMaxZ = chunkBlockMinZ + 15;
 
-        // プレイヤーのプロットの許可ブロック範囲（壁を含む、余裕を16ブロック追加）
+        // プレイヤーのプロットの許可ブロック範囲（壁幅のみ含む）
         int col       = plotIndex % COLS;
         int row       = plotIndex / COLS;
-        int allowMinX = col * PITCH - WALL_WIDTH - 16;
-        int allowMaxX = col * PITCH + PLOT_SIZE + WALL_WIDTH - 1 + 16;
-        int allowMinZ = row * PITCH - WALL_WIDTH - 16;
-        int allowMaxZ = row * PITCH + PLOT_SIZE + WALL_WIDTH - 1 + 16;
+        int allowMinX = col * PITCH - WALL_WIDTH;
+        int allowMaxX = col * PITCH + PLOT_SIZE + WALL_WIDTH - 1;
+        int allowMinZ = row * PITCH - WALL_WIDTH;
+        int allowMaxZ = row * PITCH + PLOT_SIZE + WALL_WIDTH - 1;
 
         // チャンクが許可範囲と重なるか
         boolean overlapsX = chunkBlockMaxX >= allowMinX && chunkBlockMinX <= allowMaxX;
