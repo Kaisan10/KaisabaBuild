@@ -18,6 +18,9 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import net.kaisaba.build.util.InventoryUtil;
+import org.bukkit.inventory.ItemStack;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -108,17 +111,29 @@ public class GameManager {
 
             // テレポート後 2tick 後に GameMode・インベントリを設定
             final Player fp = player;
+            final String theme = currentTheme; // ラムダ内でキャプチャ
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 fp.setGameMode(GameMode.CREATIVE);
                 fp.getInventory().clear();
                 fp.getInventory().setItem(8, makeBuildMenuCompass());
+
+                // ゲーム開始タイトル
+                Component subtitle = theme.isEmpty()
+                    ? Component.empty()
+                    : Component.text("お題「" + theme + "」", NamedTextColor.GOLD, TextDecoration.BOLD);
+                fp.showTitle(Title.title(
+                    Component.text("建築バトル開始！", NamedTextColor.GREEN, TextDecoration.BOLD),
+                    subtitle,
+                    Title.Times.times(Duration.ofMillis(500), Duration.ofSeconds(4), Duration.ofMillis(500))
+                ));
+
                 fp.sendMessage(Component.text(
                     "建築フェーズ開始！制限時間内に自由に建築してください。",
                     NamedTextColor.GREEN, TextDecoration.BOLD
                 ));
-                if (!currentTheme.isEmpty()) {
+                if (!theme.isEmpty()) {
                     fp.sendMessage(Component.text(
-                        "今回のお題:「" + currentTheme + "」",
+                        "今回のお題:「" + theme + "」",
                         NamedTextColor.GOLD, TextDecoration.BOLD
                     ));
                 }
@@ -153,7 +168,7 @@ public class GameManager {
 
         // 建築フェーズ ボスバー
         int buildTotalSec = buildMinutes * 60;
-        String bossBarPrefix = currentTheme.isEmpty() ? "" : "お題「" + currentTheme + "」";
+        String bossBarPrefix = currentTheme.isEmpty() ? "" : "お題「" + currentTheme + "」 - ";
         buildBossBar = BossBar.bossBar(
             Component.text(bossBarPrefix + "建築フェーズ残り " + buildMinutes + " 分 00 秒", NamedTextColor.YELLOW),
             1.0f,
@@ -161,6 +176,9 @@ public class GameManager {
             BossBar.Overlay.PROGRESS
         );
         showBossBarToPlayers(buildBossBar);
+
+        // 残り時間チャット通知を出す秒数セット
+        final Set<Integer> NOTIFY_SECONDS = Set.of(300, 180, 60, 30, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
 
         // 建築フェーズ 1秒ごとカウントダウン表示タスク
         buildCountdownTask = new BukkitRunnable() {
@@ -174,6 +192,33 @@ public class GameManager {
                 buildBossBar.name(Component.text(
                     bossBarPrefix + String.format("建築フェーズ残り %d 分 %02d 秒", m, s), NamedTextColor.YELLOW));
                 buildBossBar.progress(Math.max(0f, remaining / (float) buildTotalSec));
+
+                // 残り時間チャット通知
+                if (NOTIFY_SECONDS.contains(remaining)) {
+                    String timeStr = remaining >= 60
+                        ? (remaining / 60) + " 分"
+                        : remaining + " 秒";
+                    Component notice = Component.text(
+                        "[建築フェーズ] 残り " + timeStr + "！",
+                        remaining <= 10 ? NamedTextColor.RED : NamedTextColor.YELLOW,
+                        TextDecoration.BOLD
+                    );
+                    for (UUID uid : activePlayers) {
+                        Player p = Bukkit.getPlayer(uid);
+                        if (p != null) p.sendMessage(notice);
+                    }
+                }
+
+                // 建築フェーズ中のコンパス自動復元
+                if (state == GameState.BUILDING) {
+                    for (UUID uid : activePlayers) {
+                        Player p = Bukkit.getPlayer(uid);
+                        if (p == null || isBuildComplete(uid)) continue;
+                        if (!hasBuildCompass(p)) {
+                            p.getInventory().addItem(makeBuildMenuCompass());
+                        }
+                    }
+                }
             }
         }.runTaskTimer(plugin, 20L, 20L);
 
@@ -456,6 +501,17 @@ public class GameManager {
         meta.displayName(Component.text("建築メニュー", NamedTextColor.GREEN));
         item.setItemMeta(meta);
         return item;
+    }
+
+    /** インベントリ内（スロット問わず）に建築メニューコンパスがあるか確認。 */
+    private boolean hasBuildCompass(Player player) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.getType() == Material.COMPASS
+                    && InventoryUtil.hasDisplayName(item, "建築メニュー")) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
