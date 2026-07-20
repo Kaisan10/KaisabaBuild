@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -49,6 +50,9 @@ public class GameManager {
 
     /** 現在のゲームに参加しているプレイヤー UUID リスト */
     private final List<UUID> activePlayers = new ArrayList<>();
+
+    /** 現在のお題（IDLE 時は空文字） */
+    private String currentTheme = "";
 
     /** 建築完了済みプレイヤーの UUID セット */
     private final Set<UUID> completedBuilders = new HashSet<>();
@@ -112,6 +116,12 @@ public class GameManager {
                     "建築フェーズ開始！制限時間内に自由に建築してください。",
                     NamedTextColor.GREEN, TextDecoration.BOLD
                 ));
+                if (!currentTheme.isEmpty()) {
+                    fp.sendMessage(Component.text(
+                        "今回のお題:「" + currentTheme + "」",
+                        NamedTextColor.GOLD, TextDecoration.BOLD
+                    ));
+                }
                 fp.sendMessage(Component.text(
                     "あなたのプロット番号: " + (plotIndex + 1),
                     NamedTextColor.YELLOW
@@ -132,17 +142,20 @@ public class GameManager {
 
         state = GameState.BUILDING;
         gameStartTime = System.currentTimeMillis();
+        currentTheme = pickTheme();
         int buildMinutes = plugin.getConfig().getInt("build-time-minutes", 20);
 
+        String themeLabel = currentTheme.isEmpty() ? "" : "お題:「" + currentTheme + "」";
         plugin.getServer().broadcast(Component.text(
-            "━━━ 建築バトル 建築フェーズ開始！制限時間: " + buildMinutes + " 分 ━━━",
+            "━━━ 建築バトル 建築フェーズ開始！" + themeLabel + "制限時間: " + buildMinutes + " 分 ━━━",
             NamedTextColor.YELLOW, TextDecoration.BOLD
         ));
 
         // 建築フェーズ ボスバー
         int buildTotalSec = buildMinutes * 60;
+        String bossBarPrefix = currentTheme.isEmpty() ? "" : "お題「" + currentTheme + "」";
         buildBossBar = BossBar.bossBar(
-            Component.text("建築フェーズ残り " + buildMinutes + " 分 00 秒", NamedTextColor.YELLOW),
+            Component.text(bossBarPrefix + "建築フェーズ残り " + buildMinutes + " 分 00 秒", NamedTextColor.YELLOW),
             1.0f,
             BossBar.Color.YELLOW,
             BossBar.Overlay.PROGRESS
@@ -159,7 +172,7 @@ public class GameManager {
                 int m = remaining / 60;
                 int s = remaining % 60;
                 buildBossBar.name(Component.text(
-                    String.format("建築フェーズ残り %d 分 %02d 秒", m, s), NamedTextColor.YELLOW));
+                    bossBarPrefix + String.format("建築フェーズ残り %d 分 %02d 秒", m, s), NamedTextColor.YELLOW));
                 buildBossBar.progress(Math.max(0f, remaining / (float) buildTotalSec));
             }
         }.runTaskTimer(plugin, 20L, 20L);
@@ -355,6 +368,7 @@ public class GameManager {
         // state を先に IDLE にする → onPlayerTeleport のガードがロビーテレポートをキャンセルしない
         state = GameState.IDLE;
         gameStartTime = -1L;
+        currentTheme = "";
         plugin.getAntiFreecam().setEnabled(true); // 評価フェーズ終了 → 再び制限
 
         String lobbyWorldName = plugin.getConfig().getString("lobby-world", "world");
@@ -435,6 +449,8 @@ public class GameManager {
         return new Location(lobbyWorld, x, y, z, yaw, pitch);
     }
 
+
+
     /** 建築フェーズ用メニューコンパス（スロット8）。 */
     private ItemStack makeBuildMenuCompass() {
         ItemStack item = new ItemStack(Material.COMPASS);
@@ -500,5 +516,12 @@ public class GameManager {
         } else if (state == GameState.RATING) {
             checkAllRatingComplete();
         }
+    }
+
+    /** config.yml の themes リストからランダムで1つ選ぶ。空なら空文字を返す。 */
+    private String pickTheme() {
+        List<String> themes = plugin.getConfig().getStringList("themes");
+        if (themes.isEmpty()) return "";
+        return themes.get(new Random().nextInt(themes.size()));
     }
 }

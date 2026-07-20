@@ -265,7 +265,6 @@ public class BuildListener implements Listener {
         int by = block.getY();
         if (type == Material.STRIPPED_OAK_WOOD && by <= 63) return true;
         if (type == Material.STRIPPED_OAK_WOOD && plugin.getPlotManager().isWall(block.getLocation())) return true;
-        if (type == Material.GLASS) return true;
         if (by >= 127) return true;
 
         // 自分のプロット外はキャンセル

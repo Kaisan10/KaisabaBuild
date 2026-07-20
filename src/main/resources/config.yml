@@ -18,3 +18,13 @@ min-players: 3
 countdown-seconds: 30
 build-time-minutes: 20
 rating-time-minutes: 5
+
+# お題リスト（建築フェーズ開始時にランダムで1つ選択される。空にするとお題なし）
+themes:
+  - "家"
+  - "城"
+  - "図書館"
+  - "未来都市"
+  - "水中建築"
+  - "洞窟"
+  - "空島"

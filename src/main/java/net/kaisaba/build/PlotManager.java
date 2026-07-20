@@ -26,15 +26,15 @@ import java.util.UUID;
  *   4×4 グリッド、最大 16 プロット
  *   プロットサイズ: 64×64
  *   壁幅: 2 (BARRIER)
- *   ピッチ: 66
- *   プロット i の原点: (col*66, 64, row*66)  (col = i%4, row = i/4)
+ *   ピッチ: 80
+ *   プロット i の原点: (col*80, 64, row*80)  (col = i%4, row = i/4)
  *   スポーン:          (originX+32, 65, originZ+32)
  */
 public class PlotManager {
 
     private static final int PLOT_SIZE = 64;
     private static final int WALL_WIDTH = 2;
-    private static final int PITCH = PLOT_SIZE + WALL_WIDTH; // 66
+    private static final int PITCH = 80; // 16 の倍数（チャンク境界に合わせる）
     private static final int COLS = 4;
     /** 床下段（壊せない）の Y 座標 */
     private static final int FLOOR_BASE_Y = 63;

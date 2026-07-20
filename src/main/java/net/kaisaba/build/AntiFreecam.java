@@ -23,7 +23,7 @@ public class AntiFreecam extends PacketListenerAbstract {
     // PlotManager と同じ定数
     private static final int PLOT_SIZE  = 64;
     private static final int WALL_WIDTH = 2;
-    private static final int PITCH      = 66;
+    private static final int PITCH      = 80;
     private static final int COLS       = 4;
 
     private final PlotManager plotManager;

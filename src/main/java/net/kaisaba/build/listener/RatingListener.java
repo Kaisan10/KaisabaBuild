@@ -7,6 +7,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Material;
+import org.bukkit.Tag;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -44,6 +46,20 @@ public class RatingListener implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_AIR
                 && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (plugin.getGameManager().getState() != GameState.RATING) return;
+
+        // 評価フェーズ中でもドア・ボタン・レバー等はキャンセルしない（op不要で誰でも操作可能）
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
+            org.bukkit.block.Block b = event.getClickedBlock();
+            org.bukkit.Material m = b.getType();
+            if (org.bukkit.Tag.DOORS.isTagged(m)
+                    || org.bukkit.Tag.TRAPDOORS.isTagged(m)
+                    || org.bukkit.Tag.FENCE_GATES.isTagged(m)
+                    || org.bukkit.Tag.BUTTONS.isTagged(m)
+                    || org.bukkit.Tag.PRESSURE_PLATES.isTagged(m)
+                    || m == org.bukkit.Material.LEVER) {
+                return; // キャンセルしない
+            }
+        }
 
         Player player = event.getPlayer();
         int heldSlot = player.getInventory().getHeldItemSlot();
@@ -131,6 +147,16 @@ public class RatingListener implements Listener {
         ));
 
         player.openInventory(inv);
+    }
+
+    /** 評価フェーズ中にインタラクション可能なブロックかどうかを判定する。 */
+    private boolean isInteractable(Material material) {
+        return Tag.DOORS.isTagged(material)
+                || Tag.TRAPDOORS.isTagged(material)
+                || Tag.FENCE_GATES.isTagged(material)
+                || Tag.BUTTONS.isTagged(material)
+                || Tag.PRESSURE_PLATES.isTagged(material)
+                || material == Material.LEVER;
     }
 
     private void handleRatingConfirmClick(Player player, int slot) {
