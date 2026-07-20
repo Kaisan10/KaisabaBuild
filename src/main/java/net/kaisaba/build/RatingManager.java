@@ -234,7 +234,9 @@ public class RatingManager {
     // ─── 結果集計 ────────────────────────────────────────────
 
     public void announceResults() {
-        Map<UUID, Double> averages = new LinkedHashMap<>();
+        // target → (scores, avg) をまとめて計算
+        record ScoreResult(double avg, int voteCount) {}
+        Map<UUID, ScoreResult> results = new LinkedHashMap<>();
         for (UUID target : participants) {
             List<Integer> scores = new ArrayList<>();
             for (Map<UUID, Integer> raterMap : ratings.values()) {
@@ -242,25 +244,30 @@ public class RatingManager {
             }
             double avg = scores.isEmpty() ? 0.0
                 : scores.stream().mapToInt(Integer::intValue).average().orElse(0.0);
-            averages.put(target, avg);
+            results.put(target, new ScoreResult(avg, scores.size()));
         }
 
-        List<Map.Entry<UUID, Double>> sorted = new ArrayList<>(averages.entrySet());
-        sorted.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        List<Map.Entry<UUID, ScoreResult>> sorted = new ArrayList<>(results.entrySet());
+        sorted.sort((a, b) -> Double.compare(b.getValue().avg(), a.getValue().avg()));
 
         MessageUtil.broadcast(Component.text("━━━ 建築バトル 結果発表 ━━━", NamedTextColor.GOLD, TextDecoration.BOLD));
         int rank = 1;
         int count = 0;
         double prevScore = Double.MAX_VALUE;
-        for (Map.Entry<UUID, Double> entry : sorted) {
+        for (Map.Entry<UUID, ScoreResult> entry : sorted) {
             count++;
-            if (entry.getValue() < prevScore) {
+            ScoreResult sr = entry.getValue();
+            if (sr.avg() < prevScore) {
                 rank = count;
-                prevScore = entry.getValue();
+                prevScore = sr.avg();
             }
             String name = resolvePlayerName(entry.getKey());
+            // 得票数が1票の場合は「平均」ではなく「〇点（1票）」と表示
+            String scoreLabel = sr.voteCount() <= 1
+                ? String.format("%.1f 点（%d 票）", sr.avg(), sr.voteCount())
+                : String.format("平均 %.1f 点", sr.avg());
             MessageUtil.broadcast(Component.text(
-                rank + "位: " + name + "  平均 " + String.format("%.1f", entry.getValue()) + " 点",
+                rank + "位: " + name + "  " + scoreLabel,
                 rank == 1 ? NamedTextColor.GOLD : rank == 2 ? NamedTextColor.GRAY : NamedTextColor.WHITE
             ));
         }

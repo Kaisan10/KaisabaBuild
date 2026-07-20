@@ -18,8 +18,10 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.entity.Shulker;
 
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * ピストン・爆発から壁・プロット外ブロックを保護する。
@@ -78,6 +80,48 @@ public class ArenaProtectionListener implements Listener {
     }
 
     // ─── ドラゴンの卵 ─────────────────────────────────────────
+
+    /** ドア・トラップドア・フェンスゲートの開閉をアリーナ内で許可するブロック種別セット */
+    private static final Set<Material> OPENABLE_BLOCKS = EnumSet.of(
+        // ドア
+        Material.OAK_DOOR, Material.SPRUCE_DOOR, Material.BIRCH_DOOR,
+        Material.JUNGLE_DOOR, Material.ACACIA_DOOR, Material.DARK_OAK_DOOR,
+        Material.MANGROVE_DOOR, Material.CHERRY_DOOR, Material.BAMBOO_DOOR,
+        Material.CRIMSON_DOOR, Material.WARPED_DOOR, Material.COPPER_DOOR,
+        Material.EXPOSED_COPPER_DOOR, Material.WEATHERED_COPPER_DOOR,
+        Material.OXIDIZED_COPPER_DOOR, Material.WAXED_COPPER_DOOR,
+        Material.WAXED_EXPOSED_COPPER_DOOR, Material.WAXED_WEATHERED_COPPER_DOOR,
+        Material.WAXED_OXIDIZED_COPPER_DOOR, Material.IRON_DOOR,
+        // トラップドア
+        Material.OAK_TRAPDOOR, Material.SPRUCE_TRAPDOOR, Material.BIRCH_TRAPDOOR,
+        Material.JUNGLE_TRAPDOOR, Material.ACACIA_TRAPDOOR, Material.DARK_OAK_TRAPDOOR,
+        Material.MANGROVE_TRAPDOOR, Material.CHERRY_TRAPDOOR, Material.BAMBOO_TRAPDOOR,
+        Material.CRIMSON_TRAPDOOR, Material.WARPED_TRAPDOOR, Material.COPPER_TRAPDOOR,
+        Material.EXPOSED_COPPER_TRAPDOOR, Material.WEATHERED_COPPER_TRAPDOOR,
+        Material.OXIDIZED_COPPER_TRAPDOOR, Material.WAXED_COPPER_TRAPDOOR,
+        Material.WAXED_EXPOSED_COPPER_TRAPDOOR, Material.WAXED_WEATHERED_COPPER_TRAPDOOR,
+        Material.WAXED_OXIDIZED_COPPER_TRAPDOOR, Material.IRON_TRAPDOOR,
+        // フェンスゲート
+        Material.OAK_FENCE_GATE, Material.SPRUCE_FENCE_GATE, Material.BIRCH_FENCE_GATE,
+        Material.JUNGLE_FENCE_GATE, Material.ACACIA_FENCE_GATE, Material.DARK_OAK_FENCE_GATE,
+        Material.MANGROVE_FENCE_GATE, Material.CHERRY_FENCE_GATE, Material.BAMBOO_FENCE_GATE,
+        Material.CRIMSON_FENCE_GATE, Material.WARPED_FENCE_GATE
+    );
+
+    /**
+     * アリーナ内のドア・トラップドア・フェンスゲートの開閉をプレイヤー全員に許可する。
+     * WorldGuard の制限を解除するため HIGHEST 優先度で処理する。
+     */
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
+    public void onDoorInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        Block clicked = event.getClickedBlock();
+        if (clicked == null) return;
+        if (!OPENABLE_BLOCKS.contains(clicked.getType())) return;
+        if (!isArena(clicked.getWorld().getName())) return;
+        // アリーナ内のドア系ブロックのインタラクトを常に許可
+        event.setCancelled(false);
+    }
 
     /**
      * ドラゴンの卵を右クリックするとテレポートしてしまう挙動をキャンセルする。

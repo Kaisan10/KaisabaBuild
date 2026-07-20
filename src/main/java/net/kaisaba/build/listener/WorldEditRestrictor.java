@@ -72,7 +72,11 @@ public class WorldEditRestrictor {
         // 管理者は制限しない
         if (player.hasPermission("kaisababuild.admin")) return;
 
-        int plotIndex = plugin.getPlotManager().getPlotIndex(player);
+        // 建築完了済みプレイヤーは BUILDING 中も全拒否（自プロット変更不可）
+        boolean buildComplete = state == GameState.BUILDING
+                && plugin.getGameManager().isBuildComplete(uuid);
+
+        int plotIndex = (!buildComplete) ? plugin.getPlotManager().getPlotIndex(player) : -1;
         int[] min = plotIndex >= 0 ? plugin.getPlotManager().getPlotMin(plotIndex) : null;
         int[] max = plotIndex >= 0 ? plugin.getPlotManager().getPlotMax(plotIndex) : null;
 
