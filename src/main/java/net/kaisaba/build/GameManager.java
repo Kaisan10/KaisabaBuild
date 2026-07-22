@@ -111,16 +111,15 @@ public class GameManager {
 
             // テレポート後 2tick 後に GameMode・インベントリを設定
             final Player fp = player;
-            final String theme = currentTheme; // ラムダ内でキャプチャ
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 fp.setGameMode(GameMode.CREATIVE);
                 fp.getInventory().clear();
                 fp.getInventory().setItem(8, makeBuildMenuCompass());
 
                 // ゲーム開始タイトル
-                Component subtitle = theme.isEmpty()
+                Component subtitle = currentTheme.isEmpty()
                     ? Component.empty()
-                    : Component.text("お題「" + theme + "」", NamedTextColor.GOLD, TextDecoration.BOLD);
+                    : Component.text("お題「" + currentTheme + "」", NamedTextColor.GOLD, TextDecoration.BOLD);
                 fp.showTitle(Title.title(
                     Component.text("建築バトル開始！", NamedTextColor.GREEN, TextDecoration.BOLD),
                     subtitle,
@@ -131,9 +130,9 @@ public class GameManager {
                     "建築フェーズ開始！制限時間内に自由に建築してください。",
                     NamedTextColor.GREEN, TextDecoration.BOLD
                 ));
-                if (!theme.isEmpty()) {
+                if (!currentTheme.isEmpty()) {
                     fp.sendMessage(Component.text(
-                        "今回のお題:「" + theme + "」",
+                        "今回のお題:「" + currentTheme + "」",
                         NamedTextColor.GOLD, TextDecoration.BOLD
                     ));
                 }
@@ -170,7 +169,7 @@ public class GameManager {
         int buildTotalSec = buildMinutes * 60;
         String bossBarPrefix = currentTheme.isEmpty() ? "" : "お題「" + currentTheme + "」 - ";
         buildBossBar = BossBar.bossBar(
-            Component.text(bossBarPrefix + "建築フェーズ残り " + buildMinutes + " 分 00 秒", NamedTextColor.YELLOW),
+            Component.text(bossBarPrefix + "残り " + buildMinutes + " 分 00 秒", NamedTextColor.YELLOW),
             1.0f,
             BossBar.Color.YELLOW,
             BossBar.Overlay.PROGRESS
@@ -190,7 +189,7 @@ public class GameManager {
                 int m = remaining / 60;
                 int s = remaining % 60;
                 buildBossBar.name(Component.text(
-                    bossBarPrefix + String.format("建築フェーズ残り %d 分 %02d 秒", m, s), NamedTextColor.YELLOW));
+                    bossBarPrefix + String.format("残り %d 分 %02d 秒", m, s), NamedTextColor.YELLOW));
                 buildBossBar.progress(Math.max(0f, remaining / (float) buildTotalSec));
 
                 // 残り時間チャット通知
