@@ -161,7 +161,7 @@ public class RatingManager {
 
     // ─── インタラクション処理（スロット番号で判定）──────────────
 
-    /** スロット0: 次の建築へ。 */
+    /** スロット0: 次の建築へ。自分のプロットは自動スキップする。 */
     public void handleNextArrow(Player rater) {
         UUID raterUuid = rater.getUniqueId();
         if (hotbarLocked.contains(raterUuid)) return;
@@ -170,7 +170,16 @@ public class RatingManager {
         if (targets.isEmpty()) return;
 
         int pointer = pointers.getOrDefault(raterUuid, 0);
-        int newPointer = (pointer + 1) % targets.size();
+        // 自分のプロットを飛ばして次の他人のプロットを探す
+        int size = targets.size();
+        int newPointer = pointer;
+        for (int i = 1; i <= size; i++) {
+            int candidate = (pointer + i) % size;
+            if (!targets.get(candidate).equals(raterUuid)) {
+                newPointer = candidate;
+                break;
+            }
+        }
         pointers.put(raterUuid, newPointer);
 
         UUID newTarget = targets.get(newPointer);

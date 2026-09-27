@@ -86,7 +86,7 @@ public class BuildListener implements Listener {
 
         boolean outOfPlot = currentPlot != playerPlot;
         int toY = event.getTo().getBlockY();
-        boolean outOfY = toY < 64 || toY >= 126;
+        boolean outOfY = toY < 64 || toY >= 127;
 
         if (outOfPlot || outOfY) {
             event.setCancelled(true);

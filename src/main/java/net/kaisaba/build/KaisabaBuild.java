@@ -4,6 +4,7 @@ import net.kaisaba.build.command.KaisabaBuildCommand;
 import net.kaisaba.build.listener.BuildListener;
 import net.kaisaba.build.listener.LobbyListener;
 import net.kaisaba.build.listener.RatingListener;
+import net.kaisaba.build.listener.SpectatorListener;
 import net.kaisaba.build.listener.ArenaProtectionListener;
 import net.kaisaba.build.listener.ServerRuleListener;
 import net.kaisaba.build.listener.WorldEditRestrictor;
@@ -22,6 +23,7 @@ public class KaisabaBuild extends JavaPlugin {
     private QueueManager queueManager;
     private RatingManager ratingManager;
     private PenaltyManager penaltyManager;
+    private SpectatorManager spectatorManager;
     private WorldEditRestrictor worldEditRestrictor;
 
     @Override
@@ -37,6 +39,7 @@ public class KaisabaBuild extends JavaPlugin {
         penaltyManager = new PenaltyManager();
         gameManager = new GameManager(this);
         queueManager = new QueueManager(this, gameManager);
+        spectatorManager = new SpectatorManager(this);
 
         // リスナー登録
         getServer().getPluginManager().registerEvents(new LobbyListener(this), this);
@@ -44,6 +47,7 @@ public class KaisabaBuild extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ArenaProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new RatingListener(this), this);
         getServer().getPluginManager().registerEvents(new ServerRuleListener(this), this);
+        getServer().getPluginManager().registerEvents(new SpectatorListener(this), this);
 
         // WorldEdit の EditSessionEvent にマスク制限を登録
         worldEditRestrictor = new WorldEditRestrictor(this);
@@ -69,4 +73,5 @@ public class KaisabaBuild extends JavaPlugin {
     public QueueManager getQueueManager() { return queueManager; }
     public RatingManager getRatingManager() { return ratingManager; }
     public PenaltyManager getPenaltyManager() { return penaltyManager; }
+    public SpectatorManager getSpectatorManager() { return spectatorManager; }
 }

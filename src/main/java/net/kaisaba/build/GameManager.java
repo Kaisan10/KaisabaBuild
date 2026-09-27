@@ -116,6 +116,9 @@ public class GameManager {
                 fp.getInventory().clear();
                 fp.getInventory().setItem(8, makeBuildMenuCompass());
 
+                // テレポート完了後にボスバーを個別表示（テレポート中は showBossBar が効かない場合があるため）
+                if (buildBossBar != null) fp.showBossBar(buildBossBar);
+
                 // ゲーム開始タイトル
                 Component subtitle = currentTheme.isEmpty()
                     ? Component.empty()
@@ -174,7 +177,7 @@ public class GameManager {
             BossBar.Color.YELLOW,
             BossBar.Overlay.PROGRESS
         );
-        showBossBarToPlayers(buildBossBar);
+        // ボスバーはテレポート完了後（runTaskLater内）に個別表示するため、ここでは呼ばない
 
         // 残り時間チャット通知を出す秒数セット
         final Set<Integer> NOTIFY_SECONDS = Set.of(300, 180, 60, 30, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
@@ -447,6 +450,9 @@ public class GameManager {
             "━━━ 建築バトル終了！ロビーに戻ります ━━━",
             NamedTextColor.GOLD, TextDecoration.BOLD
         ));
+
+        // 観戦者を全員ロビーへ戻す（endGame 呼び出し前に state を IDLE にしているので giveLobbyItem が望遠鏡を出さない）
+        plugin.getSpectatorManager().removeAllSpectators();
 
         for (UUID uuid : playersToSend) {
             Player p = Bukkit.getPlayer(uuid);

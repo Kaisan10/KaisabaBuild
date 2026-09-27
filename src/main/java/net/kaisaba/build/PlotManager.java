@@ -113,7 +113,7 @@ public class PlotManager {
     public int[] getPlotMin(int plotIndex) {
         int col = plotIndex % COLS;
         int row = plotIndex / COLS;
-        return new int[]{ col * PITCH, FLOOR_Y, row * PITCH };
+        return new int[]{ col * PITCH, FLOOR_Y - 1, row * PITCH };
     }
 
     /**
@@ -228,21 +228,19 @@ public class PlotManager {
         rm.addRegion(region);
     }
 
-    /** プロットリージョンのメンバーをクリアする。 */
+    /** プロットリージョンを削除する。メンバークリアだけではなく完全に削除し、旧座標のリージョンが残存しないようにする。 */
     private void clearPlotRegion(int plotIndex) {
         RegionManager rm = getRegionManager();
         if (rm == null) return;
-        ProtectedRegion region = rm.getRegion("plot_" + plotIndex);
-        if (region != null) region.getMembers().clear();
+        rm.removeRegion("plot_" + plotIndex);
     }
 
-    /** 全プロットリージョンのメンバーをクリアする。 */
+    /** 全プロットリージョンを削除する。旧 PITCH のリージョン残存による干渉を防ぐ。 */
     private void clearAllPlotRegions() {
         RegionManager rm = getRegionManager();
         if (rm == null) return;
         for (int i = 0; i < 16; i++) {
-            ProtectedRegion region = rm.getRegion("plot_" + i);
-            if (region != null) region.getMembers().clear();
+            rm.removeRegion("plot_" + i);
         }
     }
 

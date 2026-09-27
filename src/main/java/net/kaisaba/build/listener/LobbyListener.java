@@ -44,6 +44,7 @@ public class LobbyListener implements Listener {
 
     public static final String JOIN_ITEM_NAME = "キューに参加";
     public static final String LEAVE_ITEM_NAME = "キューから退出";
+    public static final String SPECTATE_ITEM_NAME = "今の試合を観戦";
 
     /** キュー操作のクールダウン（ミリ秒） */
     private static final long COOLDOWN_MS = 5000L;
@@ -68,23 +69,28 @@ public class LobbyListener implements Listener {
 
         if (player.getWorld().getName().equals(arenaName)) {
             // アリーナにログインした場合 → ゲームが動いていなければロビーへ
-            if (plugin.getGameManager().getState() == net.kaisaba.build.GameState.IDLE) {
-                teleportToLobbySpawn(player);
-                giveLobbyItem(player);
-            } else {
-                // ゲーム中でも activePlayers に含まれていない場合はロビーへ
-                if (!plugin.getGameManager().getActivePlayers().contains(player.getUniqueId())) {
-                    teleportToLobbySpawn(player);
-                    giveLobbyItem(player);
-                }
+            // ゲーム中でも activePlayers に含まれていない（退出済み）場合もロビーへ
+            boolean shouldSendToLobby =
+                plugin.getGameManager().getState() == net.kaisaba.build.GameState.IDLE
+                || !plugin.getGameManager().getActivePlayers().contains(player.getUniqueId());
+            if (shouldSendToLobby) {
+                // PlayerJoinEvent 内で即時テレポートは効かない場合があるため 1tick 遅延
+                final Player fp = player;
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    teleportToLobbySpawn(fp);
+                    giveLobbyItem(fp);
+                });
             }
             return;
         }
 
         if (!isLobby(player)) return;
-        // ロビースポーンにテレポート
-        teleportToLobbySpawn(player);
-        giveLobbyItem(player);
+        // ロビースポーンにテレポート（1tick 遅延）
+        final Player fp = player;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            teleportToLobbySpawn(fp);
+            giveLobbyItem(fp);
+        });
     }
 
     @EventHandler
@@ -109,9 +115,18 @@ public class LobbyListener implements Listener {
         if (!isLobby(player)) return;
 
         ItemStack item = event.getItem();
-        if (item == null || item.getType() != Material.WOODEN_PICKAXE) return;
-        // 表示名が JOIN か LEAVE のツルハシのみ対象
+        if (item == null) return;
         String displayName = InventoryUtil.getDisplayName(item);
+
+        // 望遠鏡: 観戦開始
+        if (item.getType() == Material.SPYGLASS && SPECTATE_ITEM_NAME.equals(displayName)) {
+            event.setCancelled(true);
+            plugin.getSpectatorManager().startSpectating(player);
+            return;
+        }
+
+        // ツルハシのみ対象（JOIN / LEAVE）
+        if (item.getType() != Material.WOODEN_PICKAXE) return;
         if (!JOIN_ITEM_NAME.equals(displayName) && !LEAVE_ITEM_NAME.equals(displayName)) return;
 
         event.setCancelled(true);
@@ -252,14 +267,27 @@ public class LobbyListener implements Listener {
 
     /** ゲーム終了後にロビーに戻ったプレイヤーにも呼ぶ（GameManager から使用）。 */
     public static void giveLobbyItem(Player player) {
+        KaisabaBuild plugin = KaisabaBuild.getInstance();
+        net.kaisaba.build.GameState state = plugin.getGameManager().getState();
+        boolean gameActive = state == net.kaisaba.build.GameState.BUILDING
+                || state == net.kaisaba.build.GameState.RATING;
+
         if (player.hasPermission("kaisababuild.admin")) {
             // 管理者: インベントリはclearしない。スロット4にツルハシだけ置く
             player.getInventory().setItem(4, makePickaxe(JOIN_ITEM_NAME, NamedTextColor.YELLOW));
+            if (gameActive) {
+                player.getInventory().setItem(8, makeSpyglass());
+            } else {
+                player.getInventory().setItem(8, null);
+            }
             return;
         }
         player.getInventory().clear();
         player.setGameMode(GameMode.ADVENTURE);
         player.getInventory().setItem(4, makePickaxe(JOIN_ITEM_NAME, NamedTextColor.YELLOW));
+        if (gameActive) {
+            player.getInventory().setItem(8, makeSpyglass());
+        }
     }
 
     /** ゲーム終了後、ロビー戻り時にアイテム名をリセット。 */
@@ -275,6 +303,14 @@ public class LobbyListener implements Listener {
         ItemStack item = new ItemStack(Material.WOODEN_PICKAXE);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(name, color));
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private static ItemStack makeSpyglass() {
+        ItemStack item = new ItemStack(Material.SPYGLASS);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text(SPECTATE_ITEM_NAME, NamedTextColor.GOLD));
         item.setItemMeta(meta);
         return item;
     }
