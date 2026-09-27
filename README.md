@@ -1,3 +1,15 @@
+# ⚠️ このリポジトリはアーカイブされました
+
+このリポジトリは読み取り専用です。開発はGitLabに移行しました。
+
+## 移行先
+
+**https://gitlab.bac0n.f5.si/bac0n/KaisabaBuild**
+
+最新のコード・Issue・開発はすべて上記のGitLabリポジトリで行っています。
+
+---
+
 # KaisabaBuild プラグイン
 
 ## 注意事項
